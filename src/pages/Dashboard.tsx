@@ -4,12 +4,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { FileText, LogOut, ArrowLeft, Search, User, Filter } from "lucide-react";
+import { FileText, LogOut, ArrowLeft, Search, User, Filter, BarChart3 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import ThemeToggle from "@/components/ThemeToggle";
 import ReportCard from "@/components/ReportCard";
 import { exportReportAsPDF } from "@/lib/reportExporter";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import DataVisualization from "@/components/DataVisualization";
 
 const Dashboard = () => {
   const [reports, setReports] = useState<any[]>([]);
@@ -18,6 +19,7 @@ const Dashboard = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<"date" | "name">("date");
   const [filterFavorites, setFilterFavorites] = useState(false);
+  const [showVisualization, setShowVisualization] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -201,10 +203,20 @@ const Dashboard = () => {
               <Filter className="w-4 h-4" />
               Favorites Only
             </Button>
+            <Button
+              variant={showVisualization ? "default" : "outline"}
+              onClick={() => setShowVisualization(!showVisualization)}
+              className="gap-2"
+            >
+              <BarChart3 className="w-4 h-4" />
+              <span className="hidden sm:inline">Analytics</span>
+            </Button>
           </div>
         </div>
 
-        {isLoading ? (
+        {showVisualization ? (
+          <DataVisualization reports={reports} />
+        ) : isLoading ? (
           <div className="text-center py-12">
             <p className="text-muted-foreground">Loading reports...</p>
           </div>
