@@ -5,7 +5,7 @@ import FileUpload from "@/components/FileUpload";
 import SummaryDisplay from "@/components/SummaryDisplay";
 import ThemeToggle from "@/components/ThemeToggle";
 import ChatBot from "@/components/ChatBot";
-import { FileText, Sparkles, RotateCcw, LogIn, LayoutDashboard, LogOut } from "lucide-react";
+import { FileText, Sparkles, RotateCcw, LogIn, LayoutDashboard, LogOut, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import type { User } from "@supabase/supabase-js";
@@ -95,6 +95,10 @@ const Index = () => {
                   <Button variant="outline" size="sm" onClick={() => navigate("/dashboard")} className="gap-2">
                     <LayoutDashboard className="w-4 h-4" />
                     <span className="hidden sm:inline">Dashboard</span>
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => navigate("/analytics")} className="gap-2">
+                    <TrendingUp className="w-4 h-4" />
+                    <span className="hidden sm:inline">Analytics</span>
                   </Button>
                   <Button variant="outline" size="sm" onClick={handleSignOut} className="gap-2">
                     <LogOut className="w-4 h-4" />

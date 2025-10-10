@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { FileText, LogOut, ArrowLeft, Search, User, Filter, BarChart3 } from "lucide-react";
+import { FileText, LogOut, ArrowLeft, Search, User, Filter, BarChart3, TrendingUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import ThemeToggle from "@/components/ThemeToggle";
 import ReportCard from "@/components/ReportCard";
@@ -153,6 +153,10 @@ const Dashboard = () => {
               <Button variant="outline" onClick={() => navigate("/")} className="gap-2">
                 <ArrowLeft className="w-4 h-4" />
                 <span className="hidden sm:inline">Home</span>
+              </Button>
+              <Button variant="outline" onClick={() => navigate("/analytics")} className="gap-2">
+                <TrendingUp className="w-4 h-4" />
+                <span className="hidden sm:inline">Analytics</span>
               </Button>
               <Button variant="outline" onClick={() => navigate("/profile")} className="gap-2">
                 <User className="w-4 h-4" />
