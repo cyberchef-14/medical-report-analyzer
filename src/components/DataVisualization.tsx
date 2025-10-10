@@ -1,6 +1,10 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, PieChart, Pie, Cell, Legend, LineChart, Line } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, PieChart, Pie, Cell, Legend, LineChart, Line, ScatterChart, Scatter, CartesianGrid } from "recharts";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AlertTriangle, AlertCircle } from "lucide-react";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 interface DataVisualizationProps {
   reports: Array<{
@@ -24,7 +28,61 @@ const extractDiseases = (report: any): string[] => {
   return commonDiseases.filter(disease => text.includes(disease));
 };
 
+const extractNumericValue = (text: string, parameter: string): number | null => {
+  const lowerText = text.toLowerCase();
+  const patterns = [
+    new RegExp(`${parameter}[:\\s]+([0-9.]+)`, 'i'),
+    new RegExp(`${parameter}[\\s]*:[\\s]*([0-9.]+)`, 'i'),
+    new RegExp(`([0-9.]+)[\\s]*${parameter}`, 'i'),
+  ];
+  
+  for (const pattern of patterns) {
+    const match = lowerText.match(pattern);
+    if (match && match[1]) {
+      const value = parseFloat(match[1]);
+      if (!isNaN(value)) return value;
+    }
+  }
+  return null;
+};
+
+const extractLabValues = (report: any) => {
+  const text = (report.summary || report.extracted_text || "").toLowerCase();
+  return {
+    hemoglobin: extractNumericValue(text, 'hemoglobin|hb'),
+    iron: extractNumericValue(text, 'iron|fe'),
+    bloodSugar: extractNumericValue(text, 'glucose|blood sugar|sugar'),
+    cholesterol: extractNumericValue(text, 'cholesterol'),
+    bmi: extractNumericValue(text, 'bmi|body mass index'),
+    weight: extractNumericValue(text, 'weight'),
+  };
+};
+
 const DataVisualization = ({ reports }: DataVisualizationProps) => {
+  const [criticalWarnings, setCriticalWarnings] = useState<any[]>([]);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+  useEffect(() => {
+    if (reports.length > 0) {
+      analyzeCriticalResults();
+    }
+  }, [reports]);
+
+  const analyzeCriticalResults = async () => {
+    setIsAnalyzing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('analyze-critical-results', {
+        body: { reports }
+      });
+
+      if (error) throw error;
+      setCriticalWarnings(data?.warnings || []);
+    } catch (error) {
+      console.error('Error analyzing critical results:', error);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
   // Group reports by month
   const reportsByMonth = reports.reduce((acc: Record<string, number>, report) => {
     const month = new Date(report.created_at).toLocaleDateString("en-US", { month: "short" });
@@ -75,6 +133,20 @@ const DataVisualization = ({ reports }: DataVisualizationProps) => {
     .sort((a, b) => b.count - a.count)
     .slice(0, 10);
 
+  // Extract correlation data
+  const correlationData = reports.map(report => {
+    const values = extractLabValues(report);
+    const date = new Date(report.created_at);
+    return {
+      date: date.toLocaleDateString(),
+      ...values,
+      reportName: report.report_name,
+    };
+  }).filter(d => d.hemoglobin !== null || d.iron !== null || d.bloodSugar !== null);
+
+  const hemoglobinIronData = correlationData.filter(d => d.hemoglobin !== null && d.iron !== null);
+  const bloodSugarBMIData = correlationData.filter(d => d.bloodSugar !== null && d.bmi !== null);
+
   const chartConfig = {
     reports: {
       label: "Reports",
@@ -83,6 +155,22 @@ const DataVisualization = ({ reports }: DataVisualizationProps) => {
     count: {
       label: "Count",
       color: "hsl(var(--primary))",
+    },
+    hemoglobin: {
+      label: "Hemoglobin",
+      color: "hsl(var(--chart-1))",
+    },
+    iron: {
+      label: "Iron",
+      color: "hsl(var(--chart-2))",
+    },
+    bloodSugar: {
+      label: "Blood Sugar",
+      color: "hsl(var(--chart-3))",
+    },
+    bmi: {
+      label: "BMI",
+      color: "hsl(var(--chart-4))",
     },
   };
 
@@ -104,6 +192,33 @@ const DataVisualization = ({ reports }: DataVisualizationProps) => {
 
   return (
     <div className="space-y-6">
+      {/* Critical Warnings */}
+      {criticalWarnings.length > 0 && (
+        <div className="space-y-3">
+          {criticalWarnings.map((warning, index) => (
+            <Alert 
+              key={index} 
+              variant={warning.severity === 'critical' ? 'destructive' : 'default'}
+              className="border-2"
+            >
+              {warning.severity === 'critical' ? (
+                <AlertTriangle className="h-5 w-5" />
+              ) : (
+                <AlertCircle className="h-5 w-5" />
+              )}
+              <AlertTitle className="font-bold">
+                {warning.parameter}: {warning.value}
+              </AlertTitle>
+              <AlertDescription>
+                <p className="font-medium">{warning.message}</p>
+                <p className="text-sm mt-1 opacity-80">
+                  From: {warning.reportName} ({new Date(warning.date).toLocaleDateString()})
+                </p>
+              </AlertDescription>
+            </Alert>
+          ))}
+        </div>
+      )}
       <Card>
         <CardHeader>
           <CardTitle>Reports Over Time</CardTitle>
@@ -147,6 +262,89 @@ const DataVisualization = ({ reports }: DataVisualizationProps) => {
           )}
         </CardContent>
       </Card>
+
+      {/* Correlation: Hemoglobin vs Iron */}
+      {hemoglobinIronData.length > 1 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Hemoglobin vs Iron Correlation</CardTitle>
+            <CardDescription>Relationship between hemoglobin and iron levels across reports</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer config={chartConfig} className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis 
+                    type="number" 
+                    dataKey="hemoglobin" 
+                    name="Hemoglobin" 
+                    unit=" g/dL"
+                    label={{ value: 'Hemoglobin (g/dL)', position: 'insideBottom', offset: -10 }}
+                  />
+                  <YAxis 
+                    type="number" 
+                    dataKey="iron" 
+                    name="Iron" 
+                    unit=" μg/dL"
+                    label={{ value: 'Iron (μg/dL)', angle: -90, position: 'insideLeft' }}
+                  />
+                  <ChartTooltip 
+                    content={<ChartTooltipContent />}
+                    cursor={{ strokeDasharray: '3 3' }}
+                  />
+                  <Scatter 
+                    data={hemoglobinIronData} 
+                    fill="var(--color-hemoglobin)"
+                    name="Reports"
+                  />
+                </ScatterChart>
+              </ResponsiveContainer>
+            </ChartContainer>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Correlation: Blood Sugar vs BMI */}
+      {bloodSugarBMIData.length > 1 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Blood Sugar vs BMI Correlation</CardTitle>
+            <CardDescription>Relationship between blood sugar and BMI across reports</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer config={chartConfig} className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis 
+                    type="number" 
+                    dataKey="bloodSugar" 
+                    name="Blood Sugar" 
+                    unit=" mg/dL"
+                    label={{ value: 'Blood Sugar (mg/dL)', position: 'insideBottom', offset: -10 }}
+                  />
+                  <YAxis 
+                    type="number" 
+                    dataKey="bmi" 
+                    name="BMI"
+                    label={{ value: 'BMI', angle: -90, position: 'insideLeft' }}
+                  />
+                  <ChartTooltip 
+                    content={<ChartTooltipContent />}
+                    cursor={{ strokeDasharray: '3 3' }}
+                  />
+                  <Scatter 
+                    data={bloodSugarBMIData} 
+                    fill="var(--color-bloodSugar)"
+                    name="Reports"
+                  />
+                </ScatterChart>
+              </ResponsiveContainer>
+            </ChartContainer>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
